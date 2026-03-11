@@ -1,0 +1,11 @@
+nohup: ignoring input
+=== Web聊天服务器启动成功 ===
+访问地址: http://localhost:5000
+支持功能: 用户注册/登录、好友系统、群聊、消息存储、离线消息
+================================
+Traceback (most recent call last):
+  File "/home/lilliyia/test/web_server.py", line 1050, in <module>
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+  File "/home/lilliyia/test/chat_env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 664, in run
+    raise RuntimeError('The Werkzeug web server is not '
+RuntimeError: The Werkzeug web server is not designed to run in production. Pass allow_unsafe_werkzeug=True to the run() method to disable this error.

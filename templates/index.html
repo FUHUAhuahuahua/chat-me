@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>现代化聊天室</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chat-container {
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .login-screen, .register-screen, .friend-request-screen, .create-group-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .login-form, .register-form, .friend-request-form, .create-group-form {
+            text-align: center;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .login-form h2, .register-form h2, .friend-request-form h2, .create-group-form h2 {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .login-form input, .register-form input, .friend-request-form input, .create-group-form input,
+        .login-form textarea, .register-form textarea, .friend-request-form textarea, .create-group-form textarea {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .login-form input:focus, .register-form input:focus, .friend-request-form input:focus, .create-group-form input:focus,
+        .login-form textarea:focus, .register-form textarea:focus, .friend-request-form textarea:focus, .create-group-form textarea:focus {
+            border-color: #667eea;
+        }
+        
+        .login-form button, .register-form button, .friend-request-form button, .create-group-form button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .login-form button:hover, .register-form button:hover, .friend-request-form button:hover, .create-group-form button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .login-form, .register-form {
+            text-align: center;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .login-form h2, .register-form h2 {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .login-form input, .register-form input {
+            width: 300px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .login-form input:focus, .register-form input:focus {
+            border-color: #667eea;
+        }
+        
+        .login-form button, .register-form button {
+            width: 300px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .login-form button:hover, .register-form button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .error-message {
+            color: #ff6b6b;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .success-message {
+            color: #4CAF50;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar h3 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .contacts-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .contact-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            border: 1px solid #eee;
+        }
+        
+        .contact-item:hover {
+            background: #e9ecef;
+        }
+        
+        .contact-item.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .contact-status {
+            width: 10px;
+            height: 10px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .contact-item.offline .contact-status {
+            background: #ccc;
+        }
+        
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-header {
+            padding: 15px 20px;
+            background: #667eea;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 12px 18px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            position: relative;
+        }
+        
+        .message.system {
+            background: #e9ecef;
+            color: #6c757d;
+            text-align: center;
+            max-width: 100%;
+            font-size: 0.9em;
+        }
+        
+        .message.group {
+            background: #e3f2fd;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message.private {
+            background: #fff3e0;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message.self {
+            background: #667eea;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .chat-input {
+            padding: 15px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .chat-input input {
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+        }
+        
+        .chat-input input:focus {
+            border-color: #667eea;
+        }
+        
+        .input-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-actions button {
+            flex: 1;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        
+        .input-actions button:hover {
+            background: #5a6fd8;
+        }
+        
+        .input-actions button.secondary {
+            background: #6c757d;
+        }
+        
+        .input-actions button.secondary:hover {
+            background: #5a6268;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .action-btn {
+            padding: 8px 15px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .action-btn:hover {
+            background: #dee2e6;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .search-bar {
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .search-bar input {
+            border: none;
+            outline: none;
+            flex: 1;
+            padding: 5px 10px;
+            border-radius: 20px;
+        }
+        
+        .search-bar button {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录界面 -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-form">
+            <h2>💬 现代化聊天室</h2>
+            <input type="text" id="usernameInput" placeholder="请输入用户名" maxlength="20">
+            <input type="password" id="passwordInput" placeholder="请输入密码">
+            <button onclick="login()">登录</button>
+            <div style="margin-top: 15px;">
+                <span>还没有账户？</span>
+                <a href="#" onclick="showRegisterForm()" style="color: #667eea; text-decoration: none;">立即注册</a>
+            </div>
+            <div id="errorMessage" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- 注册界面 -->
+    <div class="register-screen hidden" id="registerScreen">
+        <div class="register-form">
+            <h2>📝 用户注册</h2>
+            <input type="text" id="regUsernameInput" placeholder="设置用户名（3-20字符）" maxlength="20">
+            <input type="password" id="regPasswordInput" placeholder="设置密码（至少6位）" maxlength="50">
+            <input type="password" id="regConfirmPasswordInput" placeholder="确认密码">
+            <button onclick="register()">注册</button>
+            <div style="margin-top: 15px;">
+                <a href="#" onclick="showLoginForm()" style="color: #667eea; text-decoration: none;">已有账户？立即登录</a>
+            </div>
+            <div id="regErrorMessage" class="error-message"></div>
+            <div id="regSuccessMessage" class="success-message"></div>
+        </div>
+    </div>
+
+    <!-- 聊天主界面 -->
+    <div class="chat-container hidden" id="chatContainer">
+        <div class="sidebar">
+            <h3>💬 聊天室</h3>
+            
+            <div class="tabs">
+                <div class="tab active" id="friendsTab" onclick="switchTab('friends')">好友</div>
+                <div class="tab" id="groupsTab" onclick="switchTab('groups')">群组</div>
+                <div class="tab" id="usersTab" onclick="switchTab('users')">所有用户</div>
+            </div>
+            
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="搜索...">
+                <button onclick="performSearch()">搜索</button>
+            </div>
+            
+            <div class="contacts-list" id="contactsList">
+                <!-- 好友列表将在这里渲染 -->
+            </div>
+            
+            <div class="actions">
+                <button class="action-btn" onclick="showFriendRequestForm()">添加好友</button>
+                <button class="action-btn" onclick="showCreateGroupForm()">创建群聊</button>
+            </div>
+        </div>
+        
+        <div class="chat-area">
+            <div class="chat-header">
+                <h3 id="chatTitle">群聊</h3>
+                <span id="currentStatus">群聊模式</span>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="输入消息..." onkeypress="handleKeyPress(event)">
+                <div class="input-actions">
+                    <button onclick="sendMessage()">发送</button>
+                    <button class="secondary" onclick="clearChat()">清屏</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 好友请求界面 -->
+    <div class="friend-request-screen hidden" id="friendRequestScreen">
+        <div class="friend-request-form">
+            <h2>👤 添加好友</h2>
+            <input type="text" id="friendUsernameInput" placeholder="好友用户名">
+            <textarea id="friendRequestMessage" placeholder="留言说明您的身份（可选）" rows="3"></textarea>
+            <button onclick="sendFriendRequest()">发送好友请求</button>
+            <button onclick="cancelFriendRequest()" style="background: #6c757d; margin-top: 10px;">取消</button>
+            <div id="friendRequestError" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- 创建群组界面 -->
+    <div class="create-group-screen hidden" id="createGroupScreen">
+        <div class="create-group-form">
+            <h2>👥 创建群聊</h2>
+            <input type="text" id="groupNameInput" placeholder="群组名称">
+            <div class="friend-list" id="groupMemberList">
+                <!-- 好友列表将在这里渲染 -->
+            </div>
+            <button onclick="createGroup()">创建群组</button>
+            <button onclick="cancelCreateGroup()" style="background: #6c757d; margin-top: 10px;">取消</button>
+            <div id="createGroupError" class="error-message"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUsername = '';
+        let currentUserID = 0;
+        let currentMode = 'group'; // group, private, group_chat
+        let currentTarget = null; // 私聊对象用户名或群组ID
+        let allUsers = []; // 所有注册用户
+        let friends = []; // 好友列表
+        let groups = []; // 群组列表
+        let activeTab = 'friends'; // 当前激活的标签页
+        // 添加消息缓存
+        let messageCache = {
+            'group': [], // 全局群聊消息
+            'private': {}, // 私聊消息，key为对方用户名
+            'group_chat': {} // 群组消息，key为群组ID
+        };
+
+        // 显示错误消息
+        function showError(elementId, message) {
+            document.getElementById(elementId).textContent = message;
+            setTimeout(() => {
+                document.getElementById(elementId).textContent = '';
+            }, 5000);
+        }
+        
+        // 显示成功消息
+        function showSuccess(elementId, message) {
+            document.getElementById(elementId).textContent = message;
+            setTimeout(() => {
+                document.getElementById(elementId).textContent = '';
+            }, 5000);
+        }
+        
+        // 显示注册表单
+        function showRegisterForm() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('registerScreen').classList.remove('hidden');
+        }
+        
+        // 显示登录表单
+        function showLoginForm() {
+            document.getElementById('registerScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+        
+        // 用户注册
+        function register() {
+            const username = document.getElementById('regUsernameInput').value.trim();
+            const password = document.getElementById('regPasswordInput').value;
+            const confirmPassword = document.getElementById('regConfirmPasswordInput').value;
+            
+            if (!username || !password || !confirmPassword) {
+                showError('regErrorMessage', '请填写完整信息');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showError('regErrorMessage', '两次输入的密码不一致');
+                return;
+            }
+            
+            socket.emit('register', {username: username, password: password});
+        }
+        
+        // 用户登录
+        function login() {
+            const username = document.getElementById('usernameInput').value.trim();
+            const password = document.getElementById('passwordInput').value;
+            
+            if (!username || !password) {
+                showError('errorMessage', '请输入用户名和密码');
+                return;
+            }
+            
+            socket.emit('login', {username: username, password: password});
+        }
+        
+        // 发送消息
+        function sendMessage() {
+            const message = document.getElementById('messageInput').value.trim();
+            if (!message) return;
+            
+            if (currentMode === 'group') {
+                socket.emit('group_chat', {message: message});
+            } else if (currentMode === 'private' && currentTarget) {
+                socket.emit('private_chat', {
+                    target: currentTarget,
+                    message: message
+                });
+            } else if (currentMode === 'group_chat' && currentTarget) {
+                socket.emit('group_chat_message', {
+                    group_id: currentTarget,
+                    message: message
+                });
+            }
+            
+            document.getElementById('messageInput').value = '';
+        }
+        
+        // 清空聊天记录
+        function clearChat() {
+            document.getElementById('chatMessages').innerHTML = '';
+            // 清空当前聊天上下文的缓存
+            if (currentMode === 'group') {
+                messageCache.group = [];
+            } else if (currentMode === 'private' && currentTarget) {
+                messageCache.private[currentTarget] = [];
+            } else if (currentMode === 'group_chat' && currentTarget) {
+                messageCache.group_chat[currentTarget] = [];
+            }
+        }
+        
+        // 处理回车键
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // 缓存并显示消息
+        function cacheAndDisplayMessage(message, type, isSelf = false, context = null) {
+            // 缓存消息
+            if (type === 'group') {
+                messageCache.group.push({message, type, isSelf});
+            } else if (type === 'private' && context) {
+                if (!messageCache.private[context]) {
+                    messageCache.private[context] = [];
+                }
+                messageCache.private[context].push({message, type, isSelf});
+            } else if (type === 'group_chat' && context) {
+                if (!messageCache.group_chat[context]) {
+                    messageCache.group_chat[context] = [];
+                }
+                messageCache.group_chat[context].push({message, type, isSelf});
+            }
+            
+            // 显示消息
+            addMessage(message, type, isSelf);
+        }
+        
+        // 显示消息到聊天窗口
+        function addMessage(message, type = 'group', isSelf = false) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            
+            if (isSelf) {
+                messageDiv.className = `message self`;
+            } else {
+                messageDiv.className = `message ${type}`;
+            }
+            
+            if (type === 'system') {
+                messageDiv.textContent = message;
+            } else {
+                messageDiv.innerHTML = message;
+            }
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 加载指定聊天上下文的消息
+        function loadCachedMessages() {
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = '';
+            
+            if (currentMode === 'group') {
+                messageCache.group.forEach(msg => {
+                    addMessage(msg.message, msg.type, msg.isSelf);
+                });
+            } else if (currentMode === 'private' && currentTarget) {
+                const msgs = messageCache.private[currentTarget] || [];
+                msgs.forEach(msg => {
+                    addMessage(msg.message, msg.type, msg.isSelf);
+                });
+            } else if (currentMode === 'group_chat' && currentTarget) {
+                const msgs = messageCache.group_chat[currentTarget] || [];
+                msgs.forEach(msg => {
+                    addMessage(msg.message, msg.type, msg.isSelf);
+                });
+            }
+        }
+        
+        // 更新联系人列表
+        function updateContactsList() {
+            const contactsDiv = document.getElementById('contactsList');
+            contactsDiv.innerHTML = '';
+            
+            if (activeTab === 'friends') {
+                // 显示好友列表
+                if (friends && friends.length > 0) {
+                    friends.forEach(friend => {
+                        if (friend && friend.username) {
+                            const friendDiv = document.createElement('div');
+                            friendDiv.className = 'contact-item';
+                            friendDiv.dataset.username = friend.username;
+                            friendDiv.innerHTML = `
+                                <div class="contact-status"></div>
+                                ${friend.username}
+                            `;
+                            friendDiv.onclick = () => selectContact(friend.username, 'private');
+                            contactsDiv.appendChild(friendDiv);
+                        }
+                    });
+                }
+                
+                if (!friends || friends.length === 0) {
+                    const hintDiv = document.createElement('div');
+                    hintDiv.className = 'message system';
+                    hintDiv.textContent = '暂无好友，快去添加几个吧！';
+                    contactsDiv.appendChild(hintDiv);
+                }
+            } else if (activeTab === 'groups') {
+                // 显示群组列表
+                if (groups && groups.length > 0) {
+                    groups.forEach(group => {
+                        if (group && group.group_name) {
+                            const groupDiv = document.createElement('div');
+                            groupDiv.className = 'contact-item';
+                            groupDiv.dataset.groupId = group.id;
+                            groupDiv.innerHTML = `
+                                <div class="contact-status"></div>
+                                📱 ${group.group_name}
+                            `;
+                            groupDiv.onclick = () => selectGroup(group.id, group.group_name);
+                            contactsDiv.appendChild(groupDiv);
+                        }
+                    });
+                }
+                
+                if (!groups || groups.length === 0) {
+                    const hintDiv = document.createElement('div');
+                    hintDiv.className = 'message system';
+                    hintDiv.textContent = '暂无群组，快去创建一个吧！';
+                    contactsDiv.appendChild(hintDiv);
+                }
+            } else if (activeTab === 'users') {
+                // 显示所有用户列表
+                if (allUsers && allUsers.length > 0) {
+                    allUsers.forEach(user => {
+                        if (user && user.username) {
+                            const userDiv = document.createElement('div');
+                            userDiv.className = 'contact-item';
+                            
+                            // 检查是否为好友
+                            const isFriend = friends && friends.some(f => f.id === user.id);
+                            if (isFriend) {
+                                userDiv.classList.add('active'); // 已添加的好友高亮显示
+                            }
+                            
+                            userDiv.dataset.username = user.username;
+                            userDiv.innerHTML = `
+                                <div class="contact-status ${!isOnline(user.username) ? 'offline' : ''}"></div>
+                                ${user.username} ${isFriend ? '(已是好友)' : ''}
+                            `;
+                            userDiv.onclick = () => {
+                                if (!isFriend) {
+                                    currentTarget = user.username;
+                                    document.getElementById('chatTitle').textContent = user.username;
+                                    document.getElementById('currentStatus').textContent = `私聊: ${user.username}`;
+                                    currentMode = 'private';
+                                    
+                                    // 高亮选中的联系人
+                                    document.querySelectorAll('.contact-item').forEach(item => {
+                                        item.classList.remove('active');
+                                    });
+                                    userDiv.classList.add('active');
+                                } else {
+                                    // 如果已经是好友，直接进入聊天
+                                    selectContact(user.username, 'private');
+                                }
+                            };
+                            contactsDiv.appendChild(userDiv);
+                        }
+                    });
+                }
+            }
+        }
+        
+        // 检查用户是否在线
+        function isOnline(username) {
+            // 这里简单返回true，实际应用中可以根据在线用户列表判断
+            return true;
+        }
+        
+        // 切换标签页
+        function switchTab(tabName) {
+            activeTab = tabName;
+            
+            // 更新标签页样式
+            document.getElementById('friendsTab').classList.toggle('active', tabName === 'friends');
+            document.getElementById('groupsTab').classList.toggle('active', tabName === 'groups');
+            document.getElementById('usersTab').classList.toggle('active', tabName === 'users');
+            
+            // 更新联系人列表
+            updateContactsList();
+        }
+        
+        // 选择联系人
+        function selectContact(username, mode) {
+            currentTarget = username;
+            document.getElementById('chatTitle').textContent = username;
+            document.getElementById('currentStatus').textContent = `私聊: ${username}`;
+            currentMode = mode;
+            
+            // 不再清空聊天窗口，而是加载缓存的消息
+            // 高亮选中的联系人
+            document.querySelectorAll('.contact-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.username === username) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // 加载缓存的消息
+            loadCachedMessages();
+            
+            // 请求加载与该用户的聊天历史（从服务器）
+            socket.emit('get_private_chat_history', {other_username: username});
+        }
+        
+        // 选择群组
+        function selectGroup(groupId, groupName) {
+            currentTarget = groupId;
+            document.getElementById('chatTitle').textContent = groupName;
+            document.getElementById('currentStatus').textContent = `群聊：${groupName}`;
+            currentMode = 'group_chat';
+            
+            // 高亮选中的群组
+            document.querySelectorAll('.contact-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.groupId == groupId) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // 清空聊天窗口，准备加载新的聊天历史
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = '';
+            
+            // 如果缓存中有消息，直接显示缓存（快速响应）
+            if (messageCache.group_chat[groupId] && messageCache.group_chat[groupId].length > 0) {
+                loadCachedMessages();
+            } else {
+                // 如果缓存为空，从服务器加载群组历史消息
+                socket.emit('get_group_chat_history', {group_id: groupId});
+            }
+            
+            // 显示群成员列表
+            showGroupMembers(groupId);
+        }
+        
+        // 显示群成员列表
+        function showGroupMembers(groupId) {
+            // 获取群成员
+            socket.emit('get_group_members', {group_id: groupId});
+        }
+        
+        // 显示好友请求表单
+        function showFriendRequestForm() {
+            document.getElementById('chatContainer').classList.add('hidden');
+            document.getElementById('friendRequestScreen').classList.remove('hidden');
+        }
+        
+        // 取消好友请求
+        function cancelFriendRequest() {
+            document.getElementById('friendRequestScreen').classList.add('hidden');
+            document.getElementById('chatContainer').classList.remove('hidden');
+        }
+        
+        // 显示创建群组表单
+        function showCreateGroupForm() {
+            // 先获取好友列表
+            socket.emit('get_friends');
+            
+            document.getElementById('chatContainer').classList.add('hidden');
+            document.getElementById('createGroupScreen').classList.remove('hidden');
+            
+            // 渲染好友列表供选择
+            renderGroupMemberList();
+        }
+        
+        // 取消创建群组
+        function cancelCreateGroup() {
+            document.getElementById('createGroupScreen').classList.add('hidden');
+            document.getElementById('chatContainer').classList.remove('hidden');
+        }
+        
+        // 渲染群组成员选择列表
+        function renderGroupMemberList() {
+            const memberListDiv = document.getElementById('groupMemberList');
+            memberListDiv.innerHTML = '';
+            
+            if (friends.length === 0) {
+                memberListDiv.innerHTML = '<div class="message system">暂无好友可邀请</div>';
+                return;
+            }
+            
+            friends.forEach(friend => {
+                const friendDiv = document.createElement('div');
+                friendDiv.className = 'friend-item';
+                friendDiv.innerHTML = `
+                    <input type="checkbox" value="${friend.id}" data-username="${friend.username}">
+                    <span>${friend.username}</span>
+                `;
+                memberListDiv.appendChild(friendDiv);
+            });
+        }
+        
+        // 发送好友请求
+        function sendFriendRequest() {
+            const friendUsername = document.getElementById('friendUsernameInput').value.trim();
+            const message = document.getElementById('friendRequestMessage').value.trim();
+            
+            if (!friendUsername) {
+                showError('friendRequestError', '请输入好友用户名');
+                return;
+            }
+            
+            socket.emit('send_friend_request', {
+                receiver_username: friendUsername,
+                message: message
+            });
+        }
+        
+        // 创建群组
+        function createGroup() {
+            const groupName = document.getElementById('groupNameInput').value.trim();
+            const checkboxes = document.querySelectorAll('#groupMemberList input[type="checkbox"]:checked');
+            
+            if (!groupName) {
+                showError('createGroupError', '请输入群组名称');
+                return;
+            }
+            
+            // 允许创建只有自己的群组（至少包含创建者）
+            const memberIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            socket.emit('create_group', {
+                group_name: groupName,
+                member_ids: memberIds
+            });
+        }
+        
+        // 执行搜索
+        function performSearch() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            if (activeTab === 'friends') {
+                // 搜索好友
+                const filteredFriends = friends.filter(friend => 
+                    friend.username.toLowerCase().includes(searchTerm)
+                );
+                
+                const contactsDiv = document.getElementById('contactsList');
+                contactsDiv.innerHTML = '';
+                
+                filteredFriends.forEach(friend => {
+                    const friendDiv = document.createElement('div');
+                    friendDiv.className = 'contact-item';
+                    friendDiv.dataset.username = friend.username;
+                    friendDiv.innerHTML = `
+                        <div class="contact-status"></div>
+                        ${friend.username}
+                    `;
+                    friendDiv.onclick = () => selectContact(friend.username, 'private');
+                    contactsDiv.appendChild(friendDiv);
+                });
+                
+                if (filteredFriends.length === 0) {
+                    const hintDiv = document.createElement('div');
+                    hintDiv.className = 'message system';
+                    hintDiv.textContent = '没有找到匹配的好友';
+                    contactsDiv.appendChild(hintDiv);
+                }
+            } else if (activeTab === 'users') {
+                // 搜索所有用户
+                const filteredUsers = allUsers.filter(user => 
+                    user.username.toLowerCase().includes(searchTerm)
+                );
+                
+                const contactsDiv = document.getElementById('contactsList');
+                contactsDiv.innerHTML = '';
+                
+                filteredUsers.forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'contact-item';
+                    userDiv.dataset.username = user.username;
+                    
+                    // 检查是否为好友
+                    const isFriend = friends.some(f => f.id === user.id);
+                    if (isFriend) {
+                        userDiv.classList.add('active'); // 已添加的好友高亮显示
+                    }
+                    
+                    userDiv.innerHTML = `
+                        <div class="contact-status ${!isOnline(user.username) ? 'offline' : ''}"></div>
+                        ${user.username} ${isFriend ? '(好友)' : ''}
+                    `;
+                    userDiv.onclick = () => {
+                        if (!isFriend) {
+                            currentTarget = user.username;
+                            document.getElementById('chatTitle').textContent = user.username;
+                            document.getElementById('currentStatus').textContent = `私聊: ${user.username}`;
+                            currentMode = 'private';
+                            
+                            // 高亮选中的联系人
+                            document.querySelectorAll('.contact-item').forEach(item => {
+                                item.classList.remove('active');
+                            });
+                            userDiv.classList.add('active');
+                        }
+                    };
+                    contactsDiv.appendChild(userDiv);
+                });
+            }
+        }
+        
+        // Socket.IO 事件处理
+        socket.on('connect', () => {
+            console.log('连接到服务器');
+        });
+        
+        socket.on('registration_success', (data) => {
+            showSuccess('regSuccessMessage', data.message);
+            // 自动跳转到登录界面
+            setTimeout(() => {
+                showLoginForm();
+            }, 1500);
+        });
+        
+        socket.on('registration_error', (message) => {
+            showError('regErrorMessage', message);
+        });
+        
+        socket.on('login_success', (data) => {
+            currentUsername = data.username;
+            currentUserID = data.user_id;
+            friends = data.friends || [];
+            groups = data.groups || [];
+            
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('chatContainer').classList.remove('hidden');
+            
+            // 清空聊天窗口并显示欢迎消息
+            document.getElementById('chatMessages').innerHTML = '';
+            addMessage(`欢迎 ${currentUsername}！你已成功登录。`, 'system');
+            
+            // 请求所有用户列表
+            socket.emit('get_all_users');
+            
+            // 默认进入群聊模式
+            currentMode = 'group';
+            currentTarget = null;
+            document.getElementById('chatTitle').textContent = '群聊';
+            document.getElementById('currentStatus').textContent = '群聊模式';
+            
+            // 更新联系人列表
+            updateContactsList();
+        });
+        
+        socket.on('login_error', (message) => {
+            showError('errorMessage', message);
+        });
+        
+        socket.on('system_message', (message) => {
+            addMessage(message, 'system');
+        });
+        
+        socket.on('error_message', (message) => {
+            addMessage(`❌ ${message}`, 'system');
+        });
+        
+        socket.on('group_message', (data) => {
+            // 群聊消息 - 检查是否重复
+            const isDuplicate = messageCache.group.some(msg => msg.message === data.message);
+            
+            if (!isDuplicate) {
+                cacheAndDisplayMessage(data.message, 'group', data.is_self);
+            }
+        });
+        
+        socket.on('group_chat_message', (data) => {
+            // 群组聊天消息 - 检查是否重复
+            const msgs = messageCache.group_chat[data.group_id] || [];
+            const isDuplicate = msgs.some(msg => msg.message === data.message);
+            
+            if (!isDuplicate) {
+                cacheAndDisplayMessage(data.message, 'group_chat', data.is_self, data.group_id);
+            }
+        });
+        
+        socket.on('private_message', (data) => {
+            // 私聊消息 - 缓存并根据当前模式决定是否显示
+            let targetUser;
+            if (data.is_self) {
+                // 自己发送的消息，目标是 data.target
+                targetUser = data.target;
+            } else {
+                // 接收到的消息，发送者是 data.sender
+                targetUser = data.sender;
+            }
+            
+            // 只在以下情况缓存并显示消息：
+            // 1. 当前正在与该用户聊天
+            // 2. 或者这是从服务器加载的历史消息（通过检查是否已在缓存中）
+            const msgs = messageCache.private[targetUser] || [];
+            const isDuplicate = msgs.some(msg => msg.message === data.message);
+            
+            if (!isDuplicate) {
+                cacheAndDisplayMessage(data.message, 'private', data.is_self, targetUser);
+            }
+        });
+        
+        socket.on('update_users', (users) => {
+            // 更新在线用户列表（暂时不处理）
+        });
+        
+        socket.on('all_users_list', (users) => {
+            allUsers = users;
+            updateContactsList();
+        });
+        
+        socket.on('update_friends', (friendsList) => {
+            friends = friendsList || [];
+            if (activeTab === 'friends') {
+                updateContactsList();
+            }
+            // 更新群组创建界面的好友列表
+            if (document.getElementById('createGroupScreen').classList.contains('hidden') === false) {
+                renderGroupMemberList();
+            }
+        });
+        
+        socket.on('update_groups', (groupsList) => {
+            groups = groupsList || [];
+            if (activeTab === 'groups') {
+                updateContactsList();
+            }
+        });
+        
+        socket.on('friend_request_sent', (data) => {
+            addMessage(`✅ ${data.message}`, 'system');
+            cancelFriendRequest();
+        });
+        
+        socket.on('new_friend_request', (data) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            messageDiv.innerHTML = `
+                👤 ${data.sender} 向您发送了好友请求: "${data.message || '无留言'}"<br>
+                <button onclick="acceptFriendRequest(${data.request_id}, '${data.sender}', ${data.sender_id})" style="margin: 5px; padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">接受</button>
+                <button onclick="rejectFriendRequest(${data.request_id})" style="margin: 5px; padding: 5px 10px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">拒绝</button>
+            `;
+            document.getElementById('chatMessages').appendChild(messageDiv);
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+        });
+        
+        socket.on('friend_requests', (requests) => {
+            // 处理登录时收到的待处理好友请求
+            requests.forEach(request => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message system';
+                messageDiv.innerHTML = `
+                    👤 ${request.sender} 向您发送了好友请求: "${request.message || '无留言'}"<br>
+                    <button onclick="acceptFriendRequest(${request.request_id}, '${request.sender}', ${request.sender_id})" style="margin: 5px; padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">接受</button>
+                    <button onclick="rejectFriendRequest(${request.request_id})" style="margin: 5px; padding: 5px 10px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">拒绝</button>
+                `;
+                document.getElementById('chatMessages').appendChild(messageDiv);
+            });
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+        });
+        
+        socket.on('group_members_list', (data) => {
+            // 显示群成员列表
+            const membersList = data.members.map(member => member.username).join(', ');
+            addMessage(`👥 群成员 (${data.members.length}人): ${membersList}`, 'system');
+        });
+        
+        socket.on('get_private_chat_history', (data) => {
+            // 这个事件可能不需要，因为历史消息是通过private_message事件发送的
+        });
+        
+        socket.on('get_group_chat_history', (data) => {
+            // 这个事件可能不需要，因为历史消息是通过group_chat_message事件发送的
+        });
+        
+        // 接受好友请求
+        function acceptFriendRequest(requestId, senderUsername, senderId) {
+            socket.emit('accept_friend_request', {request_id: requestId});
+            
+            // 移除按钮
+            const buttons = document.querySelectorAll(`button[onclick*="acceptFriendRequest(${requestId}"]`);
+            buttons.forEach(btn => btn.parentElement.remove());
+        }
+        
+        // 拒绝好友请求
+        function rejectFriendRequest(requestId) {
+            socket.emit('reject_friend_request', {request_id: requestId});
+            
+            // 移除按钮
+            const buttons = document.querySelectorAll(`button[onclick*="rejectFriendRequest(${requestId}"]`);
+            buttons.forEach(btn => btn.parentElement.remove());
+        }
+        
+        socket.on('friend_request_accepted', (data) => {
+            addMessage(`✅ ${data.message}`, 'system');
+            
+            // 添加到好友列表
+            if (data.friend && data.friend.username) {
+                friends.push(data.friend);
+            }
+            
+            // 更新UI
+            if (activeTab === 'friends') {
+                updateContactsList();
+            }
+        });
+        
+        socket.on('friend_request_accepted_by_other', (data) => {
+            addMessage(`✅ ${data.message}`, 'system');
+            
+            // 添加到好友列表
+            if (data.friend && data.friend.username) {
+                friends.push(data.friend);
+            }
+            
+            // 更新UI
+            if (activeTab === 'friends') {
+                updateContactsList();
+            }
+        });
+        
+        socket.on('friend_request_rejected', (data) => {
+            addMessage(`❌ ${data.message}`, 'system');
+        });
+        
+        socket.on('group_created', (data) => {
+            addMessage(`✅ ${data.message}`, 'system');
+            cancelCreateGroup();
+            
+            // 添加到群组列表
+            if (data.group) {
+                groups.push({
+                    id: data.group.id,
+                    group_name: data.group.group_name
+                });
+            }
+            
+            // 更新UI
+            if (activeTab === 'groups') {
+                updateContactsList();
+            }
+        });
+        
+        socket.on('group_invitation', (data) => {
+            addMessage(`📱 您被邀请加入群组 "${data.group_name}"，成员包括: ${data.members.join(', ')}`, 'system');
+        });
+        
+        // 初始化
+        document.getElementById('usernameInput').focus();
+    </script>
+</body>
+</html>
