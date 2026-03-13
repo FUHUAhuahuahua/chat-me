@@ -17,7 +17,8 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'chat-secret-key'
-socketio = SocketIO(app, cors_allowed_origins="*")
+# 增加WebSocket消息大小限制，支持大图片传输
+socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=10 * 1024 * 1024)  # 10MB
 
 # 数据库初始化
 def init_db():
@@ -345,6 +346,153 @@ def get_online_user_info():
 def index():
     return render_template('index.html')
 
+@app.route('/test_full_chat')
+def test_full_chat():
+    return render_template('test_full_chat.html')
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    """处理发送消息"""
+    user_info = online_users.get(request.sid)
+    if not user_info:
+        emit('error', '未登录')
+        return
+    
+    sender_id = user_info['user_id']
+    sender_name = user_info['username']
+    message = data.get('message', '')
+    target = data.get('target')
+    mode = data.get('mode', 'group')
+    is_image = data.get('is_image', False)  # 接收图片标记
+    image_data = data.get('image_data', '')  # 接收图片数据
+    
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    
+    if mode == 'group':
+        # 全局群聊
+        # 存储消息
+        store_message(sender_id, None, None, message if not is_image else image_data, 'group')
+        
+        # 发送给所有在线用户
+        for sid, user_info_target in online_users.items():
+            is_self = (user_info_target['user_id'] == user_info['user_id'])
+            emit('group_message', {
+                'message': message if not is_image else '',
+                'sender': sender_name,
+                'type': 'group',
+                'is_self': is_self,
+                'is_image': is_image,
+                'image_data': image_data if is_image else ''
+            }, room=sid)
+    elif mode == 'private' and target:
+        # 私聊
+        target_user = get_user_by_username(target)
+        if not target_user:
+            emit('error_message', f'用户 {target} 不存在')
+            return
+        
+        target_id = target_user[0]
+        
+        # 检查是否为好友
+        conn = sqlite3.connect('chat.db')
+        c = conn.cursor()
+        c.execute("""
+            SELECT 1 FROM friendships 
+            WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)) 
+            AND status = 1
+        """, (sender_id, target_id, target_id, sender_id))
+        is_friend = c.fetchone()
+        conn.close()
+        
+        if not is_friend:
+            emit('error_message', f'您必须先添加 {target} 为好友才能发送私信')
+            return
+        
+        # 存储消息
+        store_message(sender_id, target_id, None, message if not is_image else image_data, 'private')
+        
+        # 检查目标用户是否在线
+        target_sid = None
+        for sid, user_info in online_users.items():
+            if user_info['username'] == target:
+                target_sid = sid
+                break
+        
+        if target_sid:
+            # 目标用户在线，直接发送
+            emit('private_message', {
+                'message': message if not is_image else '',
+                'sender': sender_name,
+                'target': target,
+                'type': 'private',
+                'is_self': False,
+                'is_image': is_image,
+                'image_data': image_data if is_image else ''
+            }, room=target_sid)
+            
+            # 发送给自己确认
+            emit('private_message', {
+                'message': message if not is_image else '',
+                'sender': sender_name,
+                'target': target,
+                'type': 'private',
+                'is_self': True,
+                'is_image': is_image,
+                'image_data': image_data if is_image else ''
+            })
+        else:
+            # 目标用户不在线，存储为离线消息
+            store_offline_message(target_id, sender_id, message if not is_image else image_data, 'private')
+            
+            # 发送给自己确认
+            emit('private_message', {
+                'message': message if not is_image else '',
+                'sender': sender_name,
+                'target': target,
+                'type': 'private',
+                'is_self': True,
+                'is_image': is_image,
+                'image_data': image_data if is_image else ''
+            })
+            
+            emit('error_message', f'用户 {target} 不在线，消息已存为离线消息')
+    elif mode == 'group_chat' and target:
+        # 群组聊天
+        # 检查用户是否是群组成员
+        conn = sqlite3.connect('chat.db')
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?", (target, sender_id))
+        is_member = c.fetchone()
+        conn.close()
+        
+        if not is_member:
+            emit('error_message', '您不是该群组的成员')
+            return
+        
+        # 存储消息
+        store_message(sender_id, None, target, message if not is_image else image_data, 'group_chat')
+        
+        # 发送给所有群组成员
+        group_members = get_group_members(target)
+        for member in group_members:
+            member_sid = None
+            for sid, user_info in online_users.items():
+                if user_info['user_id'] == member[0]:
+                    member_sid = sid
+                    break
+            
+            if member_sid:
+                is_self = (member[0] == sender_id)
+                emit('group_chat_message', {
+                    'message': message if not is_image else '',
+                    'sender': sender_name,
+                    'group_id': target,
+                    'type': 'group_chat',
+                    'is_self': is_self,
+                    'is_image': is_image,
+                    'image_data': image_data if is_image else ''
+                }, room=member_sid)
+
 @socketio.on('connect')
 def handle_connect():
     print(f"客户端连接: {request.sid}")
@@ -454,25 +602,53 @@ def handle_login(data):
         # 发送全局群聊历史消息（最新的50条）
         recent_group_messages = get_recent_messages(50, group_id=None)
         for msg in recent_group_messages:  # 按时间顺序显示
-            formatted_msg = f"[{msg[2][:19]}] {msg[0]}: {msg[1]}"
+            is_image = msg[1].startswith('data:image/')
             is_self = (msg[4] == user_id)
-            emit('group_message', {
-                'message': formatted_msg,
-                'sender': msg[0],
-                'type': 'group',
-                'is_self': is_self
-            })
+            if is_image:
+                # 图片消息
+                emit('group_message', {
+                    'message': '',
+                    'sender': msg[0],
+                    'type': 'group',
+                    'is_self': is_self,
+                    'is_image': True,
+                    'image_data': msg[1]
+                })
+            else:
+                # 文本消息
+                formatted_msg = f"[{msg[2][:19]}] {msg[0]}: {msg[1]}"
+                emit('group_message', {
+                    'message': formatted_msg,
+                    'sender': msg[0],
+                    'type': 'group',
+                    'is_self': is_self,
+                    'is_image': False
+                })
         
         # 发送离线消息
         offline_messages = get_and_clear_offline_messages(user_id)
         for msg in offline_messages:
-            formatted_msg = f"[{msg[2][:19]}] [离线消息] {msg[0]} -> 你: {msg[1]}"
-            emit('private_message', {
-                'message': formatted_msg,
-                'sender': msg[0],
-                'type': 'private',
-                'is_self': False
-            })
+            is_image = msg[1].startswith('data:image/')
+            if is_image:
+                # 图片消息
+                emit('private_message', {
+                    'message': '',
+                    'sender': msg[0],
+                    'type': 'private',
+                    'is_self': False,
+                    'is_image': True,
+                    'image_data': msg[1]
+                })
+            else:
+                # 文本消息
+                formatted_msg = f"[{msg[2][:19]}] [离线消息] {msg[0]} -> 你: {msg[1]}"
+                emit('private_message', {
+                    'message': formatted_msg,
+                    'sender': msg[0],
+                    'type': 'private',
+                    'is_self': False,
+                    'is_image': False
+                })
         
         # 获取所有注册用户（用于添加好友）
         all_users = get_all_users(exclude_user_id=user_id)
@@ -512,6 +688,196 @@ def handle_get_all_users():
     all_users = get_all_users(exclude_user_id=current_user_id)
     emit('all_users_list', [{'id': u[0], 'username': u[1]} for u in all_users])
 
+@socketio.on('change_password')
+def handle_change_password(data):
+    """处理修改密码"""
+    user_info = online_users.get(request.sid)
+    if not user_info:
+        emit('password_change_error', '请先登录')
+        return
+    
+    old_password = data.get('old_password', '')
+    new_password = data.get('new_password', '')
+    
+    if not old_password or not new_password:
+        emit('password_change_error', '请填写完整信息')
+        return
+    
+    if len(new_password) < 6:
+        emit('password_change_error', '新密码长度至少为6位')
+        return
+    
+    # 验证旧密码
+    password_hash = hash_password(old_password)
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE id = ? AND password_hash = ?", (user_info['user_id'], password_hash))
+    user = c.fetchone()
+    
+    if not user:
+        conn.close()
+        emit('password_change_error', '旧密码错误')
+        return
+    
+    # 更新密码
+    try:
+        new_password_hash = hash_password(new_password)
+        c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_password_hash, user_info['user_id']))
+        conn.commit()
+        emit('password_changed', {'message': '密码修改成功'})
+    except Exception as e:
+        conn.rollback()
+        emit('password_change_error', f'密码修改失败: {str(e)}')
+    finally:
+        conn.close()
+
+
+
+@socketio.on('recall_message')
+def handle_recall_message(data):
+    """处理消息撤回"""
+    user_info = online_users.get(request.sid)
+    if not user_info:
+        return
+    
+    message_id = data.get('message_id')
+    target = data.get('target')
+    mode = data.get('mode')
+    
+    if not message_id or not mode:
+        return
+    
+    # 通知相关用户消息被撤回
+    if mode == 'group':
+        # 全局群聊，广播撤回消息
+        for sid in online_users:
+            emit('message_recalled', {
+                'message_id': message_id,
+                'message': '消息已撤回'
+            }, room=sid)
+    elif mode == 'private' and target:
+        # 私聊，通知发送者和接收者
+        emit('message_recalled', {
+            'message_id': message_id,
+            'message': '消息已撤回'
+        }, room=request.sid)
+        
+        # 通知接收者
+        for sid, info in online_users.items():
+            if info['username'] == target:
+                emit('message_recalled', {
+                    'message_id': message_id,
+                    'message': f'{user_info["username"]} 撤回了消息'
+                }, room=sid)
+                break
+    elif mode == 'group_chat' and target:
+        # 群组消息，通知所有群成员
+        group_members = get_group_members(target)
+        for member in group_members:
+            for sid, info in online_users.items():
+                if info['user_id'] == member[0]:
+                    emit('message_recalled', {
+                        'message_id': message_id,
+                        'message': f'{user_info["username"]} 撤回了消息'
+                    }, room=sid)
+                    break
+
+@socketio.on('delete_friend')
+def handle_delete_friend(data):
+    """处理删除好友"""
+    user_info = online_users.get(request.sid)
+    if not user_info:
+        emit('error_message', '请先登录')
+        return
+    
+    friend_username = data.get('friend_username', '').strip()
+    if not friend_username:
+        emit('delete_friend_error', '请选择要删除的好友')
+        return
+    
+    friend_user = get_user_by_username(friend_username)
+    if not friend_user:
+        emit('delete_friend_error', '用户不存在')
+        return
+    
+    friend_id = friend_user[0]
+    
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    
+    try:
+        c.execute("DELETE FROM friendships WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)",
+                  (user_info['user_id'], friend_id, friend_id, user_info['user_id']))
+        conn.commit()
+        
+        for sid, info in online_users.items():
+            if info['user_id'] == friend_id:
+                emit('friend_deleted', {
+                    'message': f'{user_info["username"]} 删除了与你的好友关系'
+                }, room=sid)
+                break
+        
+        emit('friend_deleted_success', {'message': f'已删除好友 {friend_username}', 'friend_id': friend_id})
+    except Exception as e:
+        emit('delete_friend_error', f'删除失败: {str(e)}')
+    finally:
+        conn.close()
+
+@socketio.on('leave_group')
+def handle_leave_group(data):
+    """处理退出群组"""
+    user_info = online_users.get(request.sid)
+    if not user_info:
+        emit('error_message', '请先登录')
+        return
+    
+    group_id = data.get('group_id')
+    if not group_id:
+        emit('leave_group_error', '请选择要退出的群组')
+        return
+    
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    
+    c.execute("SELECT creator_id FROM groups WHERE id = ?", (group_id,))
+    group = c.fetchone()
+    
+    if not group:
+        conn.close()
+        emit('leave_group_error', '群组不存在')
+        return
+    
+    if group[0] == user_info['user_id']:
+        conn.close()
+        emit('leave_group_error', '群主不能退出群组，请选择解散群组')
+        return
+    
+    try:
+        c.execute("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", (group_id, user_info['user_id']))
+        conn.commit()
+        
+        c.execute("SELECT group_name FROM groups WHERE id = ?", (group_id,))
+        group_name = c.fetchone()
+        group_name = group_name[0] if group_name else '未知群组'
+        
+        c.execute("SELECT user_id FROM group_members WHERE group_id = ?", (group_id,))
+        remaining_members = c.fetchall()
+        
+        for member in remaining_members:
+            for sid, info in online_users.items():
+                if info['user_id'] == member[0]:
+                    emit('member_left', {
+                        'group_id': group_id,
+                        'message': f'{user_info["username"]} 退出了群组'
+                    }, room=sid)
+                    break
+        
+        emit('leave_group_success', {'message': f'已退出群组 {group_name}', 'group_id': group_id})
+    except Exception as e:
+        emit('leave_group_error', f'退出失败: {str(e)}')
+    finally:
+        conn.close()
+
 @socketio.on('get_private_chat_history')
 def handle_get_private_chat_history(data):
     """获取与特定用户的私聊历史"""
@@ -530,26 +896,55 @@ def handle_get_private_chat_history(data):
     
     for msg in messages:
         is_self = (msg[4] == current_user_info['user_id'])
+        is_image = msg[1].startswith('data:image/')
         if is_self:
             # 当前用户发送的消息
-            formatted_msg = f"[{msg[2][:19]}] 你 -> {other_username}: {msg[1]}"
-            emit('private_message', {
-                'message': formatted_msg,
-                'sender': current_user_info['username'],
-                'target': other_username,
-                'type': 'private',
-                'is_self': True
-            })
+            if is_image:
+                # 图片消息
+                emit('private_message', {
+                    'message': '',
+                    'sender': current_user_info['username'],
+                    'target': other_username,
+                    'type': 'private',
+                    'is_self': True,
+                    'is_image': True,
+                    'image_data': msg[1]
+                })
+            else:
+                # 文本消息
+                formatted_msg = f"[{msg[2][:19]}] 你 -> {other_username}: {msg[1]}"
+                emit('private_message', {
+                    'message': formatted_msg,
+                    'sender': current_user_info['username'],
+                    'target': other_username,
+                    'type': 'private',
+                    'is_self': True,
+                    'is_image': False
+                })
         else:
             # 对方发送的消息
-            formatted_msg = f"[{msg[2][:19]}] {msg[0]} -> 你: {msg[1]}"
-            emit('private_message', {
-                'message': formatted_msg,
-                'sender': msg[0],
-                'target': other_username,
-                'type': 'private',
-                'is_self': False
-            })
+            if is_image:
+                # 图片消息
+                emit('private_message', {
+                    'message': '',
+                    'sender': msg[0],
+                    'target': other_username,
+                    'type': 'private',
+                    'is_self': False,
+                    'is_image': True,
+                    'image_data': msg[1]
+                })
+            else:
+                # 文本消息
+                formatted_msg = f"[{msg[2][:19]}] {msg[0]} -> 你: {msg[1]}"
+                emit('private_message', {
+                    'message': formatted_msg,
+                    'sender': msg[0],
+                    'target': other_username,
+                    'type': 'private',
+                    'is_self': False,
+                    'is_image': False
+                })
 
 @socketio.on('get_group_chat_history')
 def handle_get_group_chat_history(data):
@@ -567,14 +962,29 @@ def handle_get_group_chat_history(data):
     
     for msg in messages:
         is_self = (msg[4] == current_user_info['user_id'])
-        formatted_msg = f"[{msg[2][:19]}] {msg[0]}: {msg[1]}"
-        emit('group_chat_message', {
-            'message': formatted_msg,
-            'sender': msg[0],
-            'group_id': group_id,
-            'type': 'group_chat',
-            'is_self': is_self
-        })
+        is_image = msg[1].startswith('data:image/')
+        if is_image:
+            # 图片消息
+            emit('group_chat_message', {
+                'message': '',
+                'sender': msg[0],
+                'group_id': group_id,
+                'type': 'group_chat',
+                'is_self': is_self,
+                'is_image': True,
+                'image_data': msg[1]
+            })
+        else:
+            # 文本消息
+            formatted_msg = f"[{msg[2][:19]}] {msg[0]}: {msg[1]}"
+            emit('group_chat_message', {
+                'message': formatted_msg,
+                'sender': msg[0],
+                'group_id': group_id,
+                'type': 'group_chat',
+                'is_self': is_self,
+                'is_image': False
+            })
 
 @socketio.on('create_group')
 def handle_create_group(data):
@@ -892,20 +1302,22 @@ def handle_group_chat(data):
     if not message:
         return
     
+    is_image = data.get('is_image', False)
+    
     # 存储消息到数据库
     store_message(user_info['user_id'], None, None, message, 'group')
     
     timestamp = datetime.now().strftime('%H:%M:%S')
-    formatted_msg = f"[{timestamp}] {user_info['username']}: {message}"
     
     # 发送给所有在线用户
     for sid, user_info_target in online_users.items():
         is_self = (user_info_target['user_id'] == user_info['user_id'])
         emit('group_message', {
-            'message': formatted_msg,
+            'message': message if is_image else f"[{timestamp}] {user_info['username']}: {message}",
             'sender': user_info['username'],
             'type': 'group',
-            'is_self': is_self
+            'is_self': is_self,
+            'is_image': is_image
         }, room=sid)
 
 @socketio.on('private_chat')
@@ -920,6 +1332,8 @@ def handle_private_chat(data):
     
     if not target_username or not message:
         return
+    
+    is_image = data.get('is_image', False)
     
     # 获取目标用户信息
     target_user = get_user_by_username(target_username)
@@ -949,8 +1363,6 @@ def handle_private_chat(data):
     store_message(sender_id, target_id, None, message, 'private')
     
     timestamp = datetime.now().strftime('%H:%M:%S')
-    formatted_msg = f"[{timestamp}] [私聊] {target_user[1]} <- {sender_info['username']}: {message}"
-    private_msg = f"[{timestamp}] [私聊] {target_username} -> 你: {message}"
     
     # 检查目标用户是否在线
     target_sid = None
@@ -962,32 +1374,40 @@ def handle_private_chat(data):
     if target_sid:
         # 目标用户在线，直接发送
         emit('private_message', {
-            'message': formatted_msg,
-            'sender': target_user[1],
-            'target': sender_info['username'],
+            'message': message if is_image else f"[{timestamp}] [私聊] {sender_info['username']} -> {target_user[1]}: {message}",
+            'sender': sender_info['username'],
+            'target': target_user[1],
             'type': 'private',
-            'is_self': False
+            'is_self': False,
+            'is_image': is_image
         }, room=target_sid)
         
         # 发送给自己确认
         emit('private_message', {
-            'message': private_msg,
+            'message': message if is_image else f"[{timestamp}] [私聊] 你 -> {target_username}: {message}",
             'sender': sender_info['username'],
             'target': target_username,
             'type': 'private',
-            'is_self': True
+            'is_self': True,
+            'is_image': is_image
         })
     else:
         # 目标用户不在线，存储为离线消息
         store_offline_message(target_id, sender_id, message, 'private')
         
         # 发送给自己确认
+        if is_image:
+            confirm_msg = message
+        else:
+            confirm_msg = f"[{timestamp}] [私聊] {target_username} -> 你: {message} (对方不在线，已存为离线消息)"
+        
         emit('private_message', {
-            'message': f"{private_msg} (对方不在线，已存为离线消息)",
+            'message': confirm_msg,
             'sender': sender_info['username'],
             'target': target_username,
             'type': 'private',
-            'is_self': True
+            'is_self': True,
+            'is_image': is_image
         })
         
         emit('error_message', f'用户 {target_username} 不在线，消息已存为离线消息')
@@ -1005,6 +1425,8 @@ def handle_group_chat_message(data):
     if not group_id or not message:
         return
     
+    is_image = data.get('is_image', False)
+    
     # 检查用户是否是群组成员
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
@@ -1020,7 +1442,6 @@ def handle_group_chat_message(data):
     store_message(sender_info['user_id'], None, group_id, message, 'group_chat')
     
     timestamp = datetime.now().strftime('%H:%M:%S')
-    formatted_msg = f"[{timestamp}] {sender_info['username']}: {message}"
     
     # 发送给所有群组成员
     group_members = get_group_members(group_id)
@@ -1034,11 +1455,12 @@ def handle_group_chat_message(data):
         if member_sid:
             is_self = (member[0] == sender_info['user_id'])
             emit('group_chat_message', {
-                'message': formatted_msg,
+                'message': message if is_image else f"[{timestamp}] {sender_info['username']}: {message}",
                 'sender': sender_info['username'],
                 'group_id': group_id,
                 'type': 'group_chat',
-                'is_self': is_self
+                'is_self': is_self,
+                'is_image': is_image
             }, room=member_sid)
 
 if __name__ == '__main__':

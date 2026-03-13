@@ -244,6 +244,7 @@
             padding: 20px;
             overflow-y: auto;
             background: #f8f9fa;
+            max-height: calc(100vh - 200px); /* 确保消息容器有固定的最大高度 */
         }
         
         .message {
@@ -305,18 +306,30 @@
         .input-actions {
             display: flex;
             gap: 10px;
+            width: 100%;
         }
         
-        .input-actions button {
+        .input-actions button,
+        .input-actions label.image-btn {
             flex: 1;
-            padding: 12px;
-            background: #667eea;
-            color: white;
+            padding: 12px 20px;
             border: none;
             border-radius: 25px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+            overflow: visible;
             transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .input-actions button {
+            background: #667eea;
+            color: white;
         }
         
         .input-actions button:hover {
@@ -329,6 +342,76 @@
         
         .input-actions button.secondary:hover {
             background: #5a6268;
+        }
+        
+        .input-actions label.image-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .input-actions label.image-btn:hover {
+            background: #45a049;
+        }
+        
+        /* 仅在聊天界面强制显示按钮容器 */
+        #chatContainer:not(.hidden) #chatControls {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 9999 !important; /* 防止被其他元素遮挡 */
+        }
+        
+        /* 仅在聊天界面强制按钮本身显示 */
+        #chatContainer:not(.hidden) #chatControls button,
+        #chatContainer:not(.hidden) #chatControls label {
+            display: inline-block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        /* 确保聊天容器不被隐藏 */
+        #chatContainer {
+            height: 80vh !important;
+            width: 100% !important;
+        }
+        
+        /* 登录页隐藏逻辑 */
+        #loginScreen.hidden {
+            display: none !important;
+        }
+        
+        #imageInput {
+            display: none;
+        }
+        
+        .image-preview {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .image-preview img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 5px;
+        }
+        
+        .image-preview button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .image-preview button:hover {
+            background: #c82333;
         }
         
         .actions {
@@ -462,17 +545,43 @@
         
         <div class="chat-area">
             <div class="chat-header">
-                <h3 id="chatTitle">群聊</h3>
-                <span id="currentStatus">群聊模式</span>
-            </div>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="chat-input">
-                <input type="text" id="messageInput" placeholder="输入消息..." onkeypress="handleKeyPress(event)">
-                <div class="input-actions">
-                    <button onclick="sendMessage()">发送</button>
-                    <button class="secondary" onclick="clearChat()">清屏</button>
+                <div>
+                    <h3 id="chatTitle">群聊</h3>
+                    <span id="currentStatus">群聊模式</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="currentUser" style="font-size: 14px; opacity: 0.9;">未登录</span>
+                    <button id="changePasswordBtn" onclick="showChangePasswordForm()" style="padding: 5px 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; cursor: pointer; font-size: 14px;">
+                        修改密码
+                    </button>
                 </div>
             </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            
+            <!-- 替换原有 chatControls 区域 -->
+            <div id="chatControls" style="gap: 10px; padding: 10px; border-top: 1px solid #ccc; background: #fff;">
+                <!-- 图片选择按钮 -->
+                <label for="imageInput" style="padding: 8px 12px; background: #007bff; color: white; border-radius: 4px; cursor: pointer;">
+                    📷 选择图片
+                </label>
+                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                
+                <!-- 消息输入框 -->
+                <input type="text" id="messageInput" placeholder="输入消息..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                
+                <!-- 发送按钮 -->
+                <button onclick="sendMessage()" style="padding: 8px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    发送
+                </button>
+                
+                <!-- 清屏按钮 -->
+                <button onclick="clearChat()" style="padding: 8px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    清屏
+                </button>
+            </div>
+            
+            <!-- 保留原有的图片预览区域 -->
+            <div id="imagePreview" class="image-preview hidden"></div>
         </div>
     </div>
 
@@ -501,6 +610,19 @@
             <div id="createGroupError" class="error-message"></div>
         </div>
     </div>
+    
+    <!-- 修改密码界面 -->
+    <div class="change-password-screen hidden" id="changePasswordScreen">
+        <div class="change-password-form">
+            <h2>🔒 修改密码</h2>
+            <input type="password" id="oldPasswordInput" placeholder="旧密码">
+            <input type="password" id="newPasswordInput" placeholder="新密码">
+            <input type="password" id="confirmPasswordInput" placeholder="确认新密码">
+            <button onclick="changePassword()">修改密码</button>
+            <button onclick="cancelChangePassword()" style="background: #6c757d; margin-top: 10px;">取消</button>
+            <div id="changePasswordError" class="error-message"></div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
@@ -519,6 +641,8 @@
             'private': {}, // 私聊消息，key为对方用户名
             'group_chat': {} // 群组消息，key为群组ID
         };
+
+        let selectedImage = null; // 选中的图片
 
         // 显示错误消息
         function showError(elementId, message) {
@@ -582,24 +706,72 @@
         
         // 发送消息
         function sendMessage() {
-            const message = document.getElementById('messageInput').value.trim();
-            if (!message) return;
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
             
-            if (currentMode === 'group') {
-                socket.emit('group_chat', {message: message});
-            } else if (currentMode === 'private' && currentTarget) {
-                socket.emit('private_chat', {
-                    target: currentTarget,
-                    message: message
-                });
-            } else if (currentMode === 'group_chat' && currentTarget) {
-                socket.emit('group_chat_message', {
-                    group_id: currentTarget,
-                    message: message
-                });
+            // 无文本且无图片，不发送
+            if (!message && !selectedImage) return;
+            
+            const userInfo = {
+                username: currentUsername,
+                user_id: currentUserID
+            };
+            
+            // 构建消息数据（区分文本/图片）
+            let messageData = {
+                message: message,
+                target: currentTarget,
+                mode: currentMode,
+                is_image: !!selectedImage,
+                image_data: selectedImage ? selectedImage.data : ''
+            };
+            
+            // 发送消息到后端
+            socket.emit('send_message', messageData);
+            
+            // 本地立即显示和缓存（优化体验）
+            if (selectedImage) {
+                // 图片消息本地显示和缓存
+                const formattedMsg = `<img src="${selectedImage.data}" style="max-width: 200px; border-radius: 8px;">`;
+                addMessage(formattedMsg, currentUsername, true, true);
+                
+                // 缓存消息
+                if (currentMode === 'group') {
+                    messageCache.group.push({message: formattedMsg, type: 'group', isSelf: true, isImage: true});
+                } else if (currentMode === 'private' && currentTarget) {
+                    if (!messageCache.private[currentTarget]) {
+                        messageCache.private[currentTarget] = [];
+                    }
+                    messageCache.private[currentTarget].push({message: formattedMsg, type: 'private', isSelf: true, isImage: true});
+                } else if (currentMode === 'group_chat' && currentTarget) {
+                    if (!messageCache.group_chat[currentTarget]) {
+                        messageCache.group_chat[currentTarget] = [];
+                    }
+                    messageCache.group_chat[currentTarget].push({message: formattedMsg, type: 'group_chat', isSelf: true, isImage: true});
+                }
+                
+                clearImage(); // 清空预览
+            } else {
+                // 文本消息本地显示和缓存
+                addMessage(message, currentUsername, true, false);
+                
+                // 缓存消息
+                if (currentMode === 'group') {
+                    messageCache.group.push({message: message, type: 'group', isSelf: true, isImage: false});
+                } else if (currentMode === 'private' && currentTarget) {
+                    if (!messageCache.private[currentTarget]) {
+                        messageCache.private[currentTarget] = [];
+                    }
+                    messageCache.private[currentTarget].push({message: message, type: 'private', isSelf: true, isImage: false});
+                } else if (currentMode === 'group_chat' && currentTarget) {
+                    if (!messageCache.group_chat[currentTarget]) {
+                        messageCache.group_chat[currentTarget] = [];
+                    }
+                    messageCache.group_chat[currentTarget].push({message: message, type: 'group_chat', isSelf: true, isImage: false});
+                }
+                
+                input.value = ''; // 清空输入框
             }
-            
-            document.getElementById('messageInput').value = '';
         }
         
         // 清空聊天记录
@@ -622,46 +794,113 @@
             }
         }
         
+        // 处理图片选择
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // 仅允许图片文件
+            if (!file.type.startsWith('image/')) {
+                showError('errorMessage', '请选择有效的图片文件！');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedImage = {
+                    data: e.target.result, // Base64编码的图片数据
+                    name: file.name,
+                    type: file.type
+                };
+                
+                // 显示图片预览
+                const previewContainer = document.getElementById('imagePreview');
+                previewContainer.innerHTML = `
+                    <img src="${selectedImage.data}" alt="预览图片">
+                    <button onclick="clearImage()">取消图片</button>
+                `;
+                previewContainer.classList.remove('hidden');
+            };
+            // 将图片转为Base64编码（关键：可跨端传输）
+            reader.readAsDataURL(file);
+        }
+        
+        // 清除选中的图片
+        function clearImage() {
+            selectedImage = null;
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('imageInput').value = '';
+        }
+        
         // 缓存并显示消息
-        function cacheAndDisplayMessage(message, type, isSelf = false, context = null) {
+        function cacheAndDisplayMessage(message, type, isSelf = false, context = null, isImage = false, sender = '系统') {
             // 缓存消息
             if (type === 'group') {
-                messageCache.group.push({message, type, isSelf});
+                messageCache.group.push({message, type, isSelf, isImage});
             } else if (type === 'private' && context) {
                 if (!messageCache.private[context]) {
                     messageCache.private[context] = [];
                 }
-                messageCache.private[context].push({message, type, isSelf});
+                messageCache.private[context].push({message, type, isSelf, isImage});
             } else if (type === 'group_chat' && context) {
                 if (!messageCache.group_chat[context]) {
                     messageCache.group_chat[context] = [];
                 }
-                messageCache.group_chat[context].push({message, type, isSelf});
+                messageCache.group_chat[context].push({message, type, isSelf, isImage});
             }
             
             // 显示消息
-            addMessage(message, type, isSelf);
+            addMessage(message, sender, isSelf, isImage);
         }
         
         // 显示消息到聊天窗口
-        function addMessage(message, type = 'group', isSelf = false) {
-            const messagesDiv = document.getElementById('chatMessages');
+        function addMessage(message, sender, isSelf, isImage, messageId = null) {
+            const messagesContainer = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
+            const msgId = messageId || Date.now() + Math.random();
             
-            if (isSelf) {
-                messageDiv.className = `message self`;
-            } else {
-                messageDiv.className = `message ${type}`;
-            }
-            
-            if (type === 'system') {
+            // 区分消息类型（系统/自己/他人）
+            if (sender === '系统') {
+                messageDiv.className = 'message system';
                 messageDiv.textContent = message;
             } else {
-                messageDiv.innerHTML = message;
+                messageDiv.className = isSelf ? 'message self' : `message ${currentMode}`;
+                messageDiv.dataset.messageId = msgId;
+                
+                // 图片消息：直接插入HTML（文本消息：防XSS，用textContent）
+                if (isImage) {
+                    messageDiv.innerHTML = message;
+                } else {
+                    messageDiv.textContent = message;
+                }
+                
+                // 添加时间戳
+                const timeSpan = document.createElement('span');
+                timeSpan.style.fontSize = '0.8em';
+                timeSpan.style.opacity = '0.7';
+                timeSpan.style.marginLeft = '10px';
+                timeSpan.textContent = new Date().toLocaleTimeString();
+                messageDiv.appendChild(timeSpan);
+                
+                // 添加撤回按钮（只对自己的消息显示）
+                if (isSelf) {
+                    const recallBtn = document.createElement('button');
+                    recallBtn.textContent = '撤回';
+                    recallBtn.style.marginLeft = '10px';
+                    recallBtn.style.padding = '2px 8px';
+                    recallBtn.style.fontSize = '0.8em';
+                    recallBtn.style.background = '#6c757d';
+                    recallBtn.style.color = 'white';
+                    recallBtn.style.border = 'none';
+                    recallBtn.style.borderRadius = '4px';
+                    recallBtn.style.cursor = 'pointer';
+                    recallBtn.onclick = () => recallMessage(msgId);
+                    messageDiv.appendChild(recallBtn);
+                }
             }
             
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight; // 滚动到底部
         }
         
         // 加载指定聊天上下文的消息
@@ -671,17 +910,17 @@
             
             if (currentMode === 'group') {
                 messageCache.group.forEach(msg => {
-                    addMessage(msg.message, msg.type, msg.isSelf);
+                    addMessage(msg.message, msg.type, msg.isSelf, msg.isImage);
                 });
             } else if (currentMode === 'private' && currentTarget) {
                 const msgs = messageCache.private[currentTarget] || [];
                 msgs.forEach(msg => {
-                    addMessage(msg.message, msg.type, msg.isSelf);
+                    addMessage(msg.message, msg.type, msg.isSelf, msg.isImage);
                 });
             } else if (currentMode === 'group_chat' && currentTarget) {
                 const msgs = messageCache.group_chat[currentTarget] || [];
                 msgs.forEach(msg => {
-                    addMessage(msg.message, msg.type, msg.isSelf);
+                    addMessage(msg.message, msg.type, msg.isSelf, msg.isImage);
                 });
             }
         }
@@ -702,6 +941,7 @@
                             friendDiv.innerHTML = `
                                 <div class="contact-status"></div>
                                 ${friend.username}
+                                <button onclick="deleteFriend('${friend.username}', event)" style="margin-left: auto; padding: 3px 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">删除</button>
                             `;
                             friendDiv.onclick = () => selectContact(friend.username, 'private');
                             contactsDiv.appendChild(friendDiv);
@@ -726,6 +966,7 @@
                             groupDiv.innerHTML = `
                                 <div class="contact-status"></div>
                                 📱 ${group.group_name}
+                                <button onclick="leaveGroup(${group.id}, '${group.group_name}', event)" style="margin-left: auto; padding: 3px 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">退出</button>
                             `;
                             groupDiv.onclick = () => selectGroup(group.id, group.group_name);
                             contactsDiv.appendChild(groupDiv);
@@ -808,7 +1049,6 @@
             document.getElementById('currentStatus').textContent = `私聊: ${username}`;
             currentMode = mode;
             
-            // 不再清空聊天窗口，而是加载缓存的消息
             // 高亮选中的联系人
             document.querySelectorAll('.contact-item').forEach(item => {
                 item.classList.remove('active');
@@ -817,11 +1057,13 @@
                 }
             });
             
-            // 加载缓存的消息
+            // 快速显示缓存的消息（如果有）
             loadCachedMessages();
             
-            // 请求加载与该用户的聊天历史（从服务器）
-            socket.emit('get_private_chat_history', {other_username: username});
+            // 如果缓存为空，从服务器加载历史消息
+            if (!messageCache.private[username] || messageCache.private[username].length === 0) {
+                socket.emit('get_private_chat_history', {other_username: username});
+            }
         }
         
         // 选择群组
@@ -839,15 +1081,11 @@
                 }
             });
             
-            // 清空聊天窗口，准备加载新的聊天历史
-            const messagesDiv = document.getElementById('chatMessages');
-            messagesDiv.innerHTML = '';
+            // 快速显示缓存的消息（如果有）
+            loadCachedMessages();
             
-            // 如果缓存中有消息，直接显示缓存（快速响应）
-            if (messageCache.group_chat[groupId] && messageCache.group_chat[groupId].length > 0) {
-                loadCachedMessages();
-            } else {
-                // 如果缓存为空，从服务器加载群组历史消息
+            // 如果缓存为空，从服务器加载历史消息
+            if (!messageCache.group_chat[groupId] || messageCache.group_chat[groupId].length === 0) {
                 socket.emit('get_group_chat_history', {group_id: groupId});
             }
             
@@ -863,14 +1101,19 @@
         
         // 显示好友请求表单
         function showFriendRequestForm() {
-            document.getElementById('chatContainer').classList.add('hidden');
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.classList.add('hidden');
             document.getElementById('friendRequestScreen').classList.remove('hidden');
         }
         
         // 取消好友请求
         function cancelFriendRequest() {
             document.getElementById('friendRequestScreen').classList.add('hidden');
-            document.getElementById('chatContainer').classList.remove('hidden');
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.classList.remove('hidden');
+            chatContainer.style.display = 'flex';
+            chatContainer.style.visibility = 'visible';
+            chatContainer.style.opacity = '1';
         }
         
         // 显示创建群组表单
@@ -1044,12 +1287,29 @@
             friends = data.friends || [];
             groups = data.groups || [];
             
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('chatContainer').classList.remove('hidden');
+            // 1. 强制显示聊天容器（最高优先级）
+            const loginScreen = document.getElementById('loginScreen');
+            const chatContainer = document.getElementById('chatContainer');
+            
+            loginScreen.style.display = 'none';          // 隐藏登录页
+            chatContainer.classList.remove('hidden');     // 移除hidden类
+            chatContainer.style.display = 'flex';        // 显示聊天页（flex布局）
+            chatContainer.style.visibility = 'visible';  // 强制可见
+            chatContainer.style.opacity = '1';           // 强制不透明
+            
+            // 2. 强制显示按钮控制区
+            const chatControls = document.getElementById('chatControls');
+            if (chatControls) {
+                chatControls.style.display = 'flex'; // 强制flex布局显示
+                chatControls.style.visibility = 'visible';
+            }
+            
+            // 3. 更新当前用户显示
+            document.getElementById('currentUser').textContent = `当前账号: ${currentUsername}`;
             
             // 清空聊天窗口并显示欢迎消息
             document.getElementById('chatMessages').innerHTML = '';
-            addMessage(`欢迎 ${currentUsername}！你已成功登录。`, 'system');
+            addMessage(`欢迎 ${currentUsername}！你已成功登录。`, '系统');
             
             // 请求所有用户列表
             socket.emit('get_all_users');
@@ -1077,25 +1337,46 @@
         });
         
         socket.on('group_message', (data) => {
-            // 群聊消息 - 检查是否重复
-            const isDuplicate = messageCache.group.some(msg => msg.message === data.message);
+            const isSelf = data.is_self || false;
+            const isImage = data.is_image || false;
+            let messageContent = data.message;
             
-            if (!isDuplicate) {
-                cacheAndDisplayMessage(data.message, 'group', data.is_self);
+            // 图片消息：解析Base64渲染
+            if (isImage && data.image_data) {
+                messageContent = `<img src="${data.image_data}" style="max-width: 200px; border-radius: 8px;">`;
+            }
+            
+            // 如果是自己发送的消息，不重复显示（因为sendMessage已经本地显示了）
+            if (!isSelf) {
+                cacheAndDisplayMessage(messageContent, 'group', isSelf, null, isImage, data.sender || '系统');
             }
         });
         
         socket.on('group_chat_message', (data) => {
-            // 群组聊天消息 - 检查是否重复
-            const msgs = messageCache.group_chat[data.group_id] || [];
-            const isDuplicate = msgs.some(msg => msg.message === data.message);
+            const isSelf = data.is_self || false;
+            const isImage = data.is_image || false;
+            let messageContent = data.message;
             
-            if (!isDuplicate) {
-                cacheAndDisplayMessage(data.message, 'group_chat', data.is_self, data.group_id);
+            if (isImage && data.image_data) {
+                messageContent = `<img src="${data.image_data}" style="max-width: 200px; border-radius: 8px;">`;
+            }
+            
+            // 如果是自己发送的消息，不重复显示（因为sendMessage已经本地显示了）
+            if (!isSelf) {
+                cacheAndDisplayMessage(messageContent, 'group_chat', isSelf, data.group_id, isImage, data.sender || '系统');
             }
         });
         
         socket.on('private_message', (data) => {
+            const isSelf = data.is_self || false;
+            const isImage = data.is_image || false;
+            let messageContent = data.message;
+            
+            // 图片消息：解析Base64渲染
+            if (isImage && data.image_data) {
+                messageContent = `<img src="${data.image_data}" style="max-width: 200px; border-radius: 8px;">`;
+            }
+            
             // 私聊消息 - 缓存并根据当前模式决定是否显示
             let targetUser;
             if (data.is_self) {
@@ -1106,14 +1387,17 @@
                 targetUser = data.sender;
             }
             
-            // 只在以下情况缓存并显示消息：
-            // 1. 当前正在与该用户聊天
-            // 2. 或者这是从服务器加载的历史消息（通过检查是否已在缓存中）
-            const msgs = messageCache.private[targetUser] || [];
-            const isDuplicate = msgs.some(msg => msg.message === data.message);
-            
-            if (!isDuplicate) {
-                cacheAndDisplayMessage(data.message, 'private', data.is_self, targetUser);
+            // 缓存消息 - 跳过自己发送的消息（因为sendMessage已经本地显示和缓存了）
+            if (!isSelf) {
+                if (!messageCache.private[targetUser]) {
+                    messageCache.private[targetUser] = [];
+                }
+                messageCache.private[targetUser].push({message: messageContent, type: 'private', isSelf, isImage});
+                
+                // 只在当前正在与该用户聊天时显示消息
+                if (currentMode === 'private' && currentTarget === targetUser) {
+                    addMessage(messageContent, data.sender || '系统', isSelf, isImage);
+                }
             }
         });
         
@@ -1260,6 +1544,144 @@
         
         socket.on('group_invitation', (data) => {
             addMessage(`📱 您被邀请加入群组 "${data.group_name}"，成员包括: ${data.members.join(', ')}`, 'system');
+        });
+        
+        // 修改密码相关事件
+        socket.on('password_changed', (data) => {
+            addMessage(`✅ ${data.message}`, 'system');
+            cancelChangePassword();
+        });
+        
+        socket.on('password_change_error', (data) => {
+            showError('changePasswordError', data.message);
+        });
+        
+        // 显示修改密码表单
+        function showChangePasswordForm() {
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.classList.add('hidden');
+            document.getElementById('changePasswordScreen').classList.remove('hidden');
+        }
+        
+        // 取消修改密码
+        function cancelChangePassword() {
+            document.getElementById('changePasswordScreen').classList.add('hidden');
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.classList.remove('hidden');
+            chatContainer.style.display = 'flex';
+        }
+        
+        // 修改密码
+        function changePassword() {
+            const oldPassword = document.getElementById('oldPasswordInput').value;
+            const newPassword = document.getElementById('newPasswordInput').value;
+            const confirmPassword = document.getElementById('confirmPasswordInput').value;
+            
+            if (!oldPassword || !newPassword || !confirmPassword) {
+                showError('changePasswordError', '请填写完整信息');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                showError('changePasswordError', '两次输入的密码不一致');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showError('changePasswordError', '新密码长度至少为6位');
+                return;
+            }
+            
+            socket.emit('change_password', {
+                old_password: oldPassword,
+                new_password: newPassword
+            });
+        }
+        
+        // 撤回消息
+        function recallMessage(messageId) {
+            socket.emit('recall_message', {
+                message_id: messageId,
+                target: currentTarget,
+                mode: currentMode
+            });
+        }
+        
+        // 删除好友
+        function deleteFriend(friendUsername, event) {
+            event.stopPropagation();
+            if (confirm(`确定要删除好友 ${friendUsername} 吗？`)) {
+                socket.emit('delete_friend', { friend_username: friendUsername });
+            }
+        }
+        
+        // 退出群组
+        function leaveGroup(groupId, groupName, event) {
+            event.stopPropagation();
+            if (confirm(`确定要退出群组 ${groupName} 吗？`)) {
+                socket.emit('leave_group', { group_id: groupId });
+            }
+        }
+        
+        // 消息撤回成功
+        socket.on('message_recalled', (data) => {
+            // 从界面移除被撤回的消息
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+                if (msg.dataset.messageId == data.message_id) {
+                    msg.innerHTML = '<em style="color: #999;">' + data.message + '</em>';
+                    msg.querySelector('button')?.remove();
+                }
+            });
+            addMessage(data.message, '系统');
+        });
+        
+
+        
+        // 删除好友成功
+        socket.on('friend_deleted_success', (data) => {
+            addMessage(data.message, '系统');
+            // 从好友列表中移除
+            friends = friends.filter(f => f.id !== data.friend_id);
+            updateContactsList();
+        });
+        
+        // 被删除好友通知
+        socket.on('friend_deleted', (data) => {
+            addMessage(data.message, '系统');
+            // 刷新好友列表
+            socket.emit('get_friends');
+        });
+        
+        // 删除好友失败
+        socket.on('delete_friend_error', (data) => {
+            addMessage('❌ ' + data, '系统');
+        });
+        
+        // 退出群组成功
+        socket.on('leave_group_success', (data) => {
+            addMessage(data.message, '系统');
+            // 从群组列表中移除
+            groups = groups.filter(g => g.id !== data.group_id);
+            updateContactsList();
+            // 如果当前在退出的群组中，切换到群聊
+            if (currentMode === 'group_chat' && currentTarget == data.group_id) {
+                currentMode = 'group';
+                currentTarget = null;
+                document.getElementById('chatTitle').textContent = '群聊';
+                document.getElementById('currentStatus').textContent = '群聊模式';
+                loadCachedMessages();
+            }
+        });
+        
+        // 退出群组失败
+        socket.on('leave_group_error', (data) => {
+            addMessage('❌ ' + data, '系统');
+        });
+        
+        // 成员离开群组通知
+        socket.on('member_left', (data) => {
+            addMessage(data.message, '系统');
         });
         
         // 初始化
