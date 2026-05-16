@@ -248,12 +248,15 @@
         }
         
         .message {
-            margin: 10px 0;
+            margin: 12px 0;
             padding: 12px 18px;
             border-radius: 18px;
             max-width: 70%;
             word-wrap: break-word;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
         
         .message.system {
@@ -268,12 +271,14 @@
             background: #e3f2fd;
             align-self: flex-start;
             border-bottom-left-radius: 5px;
+            color: #333;
         }
         
         .message.private {
             background: #fff3e0;
             align-self: flex-start;
             border-bottom-left-radius: 5px;
+            color: #333;
         }
         
         .message.self {
@@ -281,6 +286,27 @@
             color: white;
             align-self: flex-end;
             border-bottom-right-radius: 5px;
+        }
+        
+        .message-sender {
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0.8;
+            margin-bottom: 4px;
+        }
+        
+        .message.self .message-sender {
+            text-align: right;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+        
+        .message.self .message-time {
+            text-align: right;
         }
         
         .chat-input {
@@ -867,26 +893,36 @@
                 messageDiv.className = isSelf ? 'message self' : `message ${currentMode}`;
                 messageDiv.dataset.messageId = msgId;
                 
-                // 图片消息：直接插入HTML（文本消息：防XSS，用textContent）
+                // 添加发送者名字
+                const senderSpan = document.createElement('div');
+                senderSpan.className = 'message-sender';
+                senderSpan.textContent = isSelf ? '你' : sender;
+                messageDiv.appendChild(senderSpan);
+                
+                // 添加消息内容容器
+                const contentDiv = document.createElement('div');
                 if (isImage) {
-                    messageDiv.innerHTML = message;
+                    contentDiv.innerHTML = message;
                 } else {
-                    messageDiv.textContent = message;
+                    contentDiv.textContent = message;
                 }
+                messageDiv.appendChild(contentDiv);
                 
                 // 添加时间戳
-                const timeSpan = document.createElement('span');
-                timeSpan.style.fontSize = '0.8em';
-                timeSpan.style.opacity = '0.7';
-                timeSpan.style.marginLeft = '10px';
-                timeSpan.textContent = new Date().toLocaleTimeString();
+                const timeSpan = document.createElement('div');
+                timeSpan.className = 'message-time';
+                timeSpan.textContent = new Date().toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
                 messageDiv.appendChild(timeSpan);
                 
                 // 添加撤回按钮（只对自己的消息显示）
                 if (isSelf) {
                     const recallBtn = document.createElement('button');
                     recallBtn.textContent = '撤回';
-                    recallBtn.style.marginLeft = '10px';
+                    recallBtn.style.marginTop = '6px';
                     recallBtn.style.padding = '2px 8px';
                     recallBtn.style.fontSize = '0.8em';
                     recallBtn.style.background = '#6c757d';
